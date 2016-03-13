@@ -84,10 +84,13 @@ struct GraphSlice
     int             index   ; // Slice index
     VertexId        nodes   ; // Number of nodes in slice
     SizeT           edges   ; // Number of edges in slice
+    SizeT           colBytes; // Number of bytes in compressed columnlist
 
     Csr<VertexId, Value, SizeT   > *graph             ; // Pointer to CSR format subgraph
     util::Array1D<SizeT, SizeT   > row_offsets        ; // CSR format row offset
     util::Array1D<SizeT, VertexId> column_indices     ; // CSR format column indices
+    util::Array1D<SizeT, SizeT   > comp_row_offsets   ; // CSR format row offset of compressed graph
+    util::Array1D<SizeT, char    > comp_column_indices; // CSR format compressed column indices
     util::Array1D<SizeT, SizeT   > out_degrees        ;
     util::Array1D<SizeT, SizeT   > column_offsets     ; // CSR format column offset
     util::Array1D<SizeT, VertexId> row_indices        ; // CSR format row indices
@@ -116,6 +119,8 @@ struct GraphSlice
     {
         row_offsets        .SetName("row_offsets"        );
         column_indices     .SetName("column_indices"     );
+        comp_row_offsets   .SetName("comp_row_offsets"   );
+        comp_column_indices.SetName("comp_column_indices");
         out_degrees        .SetName("out_degrees"        );
         column_offsets     .SetName("column_offsets"     );
         row_indices        .SetName("row_indices"        );
@@ -142,6 +147,8 @@ struct GraphSlice
         // Release allocated host / device memory
         row_offsets        .Release();
         column_indices     .Release();
+        comp_row_offsets   .Release();
+        comp_column_indices.Release();
         out_degrees        .Release();
         column_offsets     .Release();
         row_indices        .Release();
@@ -197,6 +204,7 @@ struct GraphSlice
         this->graph            = graph;
         this->nodes            = graph->nodes;
         this->edges            = graph->edges;
+        this->colBytes         = graph->column_bytes;
         if (partition_table  != NULL) this->partition_table    .SetPointer(partition_table      , nodes     );
         if (convertion_table != NULL) this->convertion_table   .SetPointer(convertion_table     , nodes     );
         if (original_vertex  != NULL) this->original_vertex    .SetPointer(original_vertex      , nodes     );
@@ -204,7 +212,9 @@ struct GraphSlice
         if (out_offset       != NULL) this->out_offset         .SetPointer(out_offset           , num_gpus + 1);
         if (out_counter      != NULL) this->out_counter        .SetPointer(out_counter          , num_gpus + 1);
         this->row_offsets        .SetPointer(graph->row_offsets   , nodes + 1   );
+        this->comp_row_offsets   .SetPointer(graph->comp_row_offsets, nodes + 1   );
         this->column_indices     .SetPointer(graph->column_indices, edges     );
+        this->comp_column_indices.SetPointer(graph->comp_column_indices, colBytes );
         if (inverstgraph != NULL)
         {
             this->column_offsets .SetPointer(inverstgraph->row_offsets, nodes + 1);
@@ -221,9 +231,16 @@ struct GraphSlice
             if (retval = this->row_offsets.Allocate(nodes + 1      , util::DEVICE)) break;
             if (retval = this->row_offsets.Move    (util::HOST   , util::DEVICE)) break;
 
+            // Allocate and initialize row_offsets
+            if (retval = this->comp_row_offsets.Allocate(nodes + 1      , util::DEVICE)) break;
+            if (retval = this->comp_row_offsets.Move    (util::HOST   , util::DEVICE)) break;
+
             // Allocate and initialize column_indices
             if (retval = this->column_indices.Allocate(edges     , util::DEVICE)) break;
             if (retval = this->column_indices.Move    (util::HOST, util::DEVICE)) break;
+
+            if (retval = this->comp_column_indices.Allocate(colBytes  , util::DEVICE)) break;
+            if (retval = this->comp_column_indices.Move    (util::HOST, util::DEVICE)) break;
 
             // Allocate out degrees for each node
             if (retval = this->out_degrees.Allocate(nodes        , util::DEVICE)) break;
@@ -313,7 +330,9 @@ struct GraphSlice
         edges               = other.edges              ;
         graph               = other.graph              ;
         row_offsets         = other.row_offsets        ;
+        comp_row_offsets    = other.comp_row_offsets   ;
         column_indices      = other.column_indices     ;
+        comp_column_indices = other.comp_column_indices;
         column_offsets      = other.column_offsets     ;
         row_indices         = other.row_indices        ;
         partition_table     = other.partition_table    ;

@@ -653,8 +653,8 @@ public:
                 return 1;
             }
             boost::filesystem::path market_filename_path(market_filename);
-            file_stem = market_filename_path.stem().string();
-            info["dataset"] = file_stem;
+//            file_stem = market_filename_path.stem().string();
+//            info["dataset"] = file_stem;
             if (graphio::BuildMarketGraph<EDGE_VALUE>(
                         market_filename,
                         csr_ref,

@@ -213,7 +213,9 @@ template <typename KernelPolicy, typename ProblemData, typename Functor>
         REDUCE_TYPE                              R_TYPE            = gunrock::oprtr::advance::EMPTY,
         typename KernelPolicy::Value            *d_value_to_reduce = NULL,
         typename KernelPolicy::Value            *d_reduce_frontier = NULL,
-        typename KernelPolicy::Value            *d_reduced_value   = NULL)
+        typename KernelPolicy::Value            *d_reduced_value   = NULL,
+        typename KernelPolicy::SizeT            *d_comp_row_offsets    = NULL,
+        char                                    *d_comp_column_indices =NULL)
 {
     if (frontier_attribute.queue_length == 0) return;
 
@@ -409,7 +411,9 @@ template <typename KernelPolicy, typename ProblemData, typename Functor>
                             R_TYPE,
                             R_OP,
                             d_value_to_reduce,
-                            d_reduce_frontier);
+                            d_reduce_frontier,
+                            d_comp_row_offsets,
+                            d_comp_column_indices);
             }
             else if (/*get_output_length &&*/ frontier_attribute.output_length[0] >= LBPOLICY::LIGHT_EDGE_THRESHOLD)
             {

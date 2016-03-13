@@ -47,11 +47,15 @@ struct Csr
     SizeT edges;            // Number of edges in the graph
     SizeT out_nodes;        // Number of nodes which have outgoing edges
     SizeT average_degree;   // Average vertex degrees
+    SizeT column_bytes;     // Number of bytes required for compressed column indices
 
     VertexId *column_indices; // Column indices corresponding to all the
     // non-zero values in the sparse matrix
+    char     *comp_column_indices;// Compressed column indices
     SizeT    *row_offsets;    // List of indices where each row of the
     // sparse matrix starts
+    SizeT    *comp_row_offsets;// List of indices where each row of the
+    // sparse matrix starts in the compressed column indices
     Value    *edge_values;    // List of values attached to edges in the graph
     Value    *node_values;    // List of values attached to nodes in the graph
 
@@ -75,7 +79,9 @@ struct Csr
         average_node_value = 0;
         out_nodes = -1;
         row_offsets = NULL;
+        comp_row_offsets = NULL;
         column_indices = NULL;
+        comp_column_indices = NULL;
         edge_values = NULL;
         node_values = NULL;
         this->pinned = pinned;
@@ -106,11 +112,24 @@ struct Csr
                         "Csr cudaHostAlloc row_offsets failed", __FILE__, __LINE__))
                 exit(1);
             if (gunrock::util::GRError(
+						cudaHostAlloc((void **)&comp_row_offsets,
+									  sizeof(SizeT) * (nodes + 1), flags),
+						"Csr cudaHostAlloc comp_row_offsets failed", __FILE__, __LINE__))
+				exit(1);
+            if (gunrock::util::GRError(
                         cudaHostAlloc((void **)&column_indices,
                                       sizeof(VertexId) * edges, flags),
                         "Csr cudaHostAlloc column_indices failed",
                         __FILE__, __LINE__))
                 exit(1);
+            // Same amount of memory allocated as column_indices.
+            // Only required amount will be transferred to device where we want to save space
+            if (gunrock::util::GRError(
+						cudaHostAlloc((void **)&comp_column_indices,
+									  sizeof(VertexId) * edges, flags),
+						"Csr cudaHostAlloc comp_column_indices failed",
+						__FILE__, __LINE__))
+				exit(1);
 
             if (LOAD_NODE_VALUES)
             {
@@ -137,7 +156,9 @@ struct Csr
         {
             // Put our graph in regular memory
             row_offsets = (SizeT*) malloc(sizeof(SizeT) * (nodes + 1));
+            comp_row_offsets = (SizeT*) malloc(sizeof(SizeT) * (nodes + 1));
             column_indices = (VertexId*) malloc(sizeof(VertexId) * edges);
+            comp_column_indices = (char*) malloc(sizeof(char) * edges);
             node_values = (LOAD_NODE_VALUES) ?
                           (Value*) malloc(sizeof(Value) * nodes) : NULL;
             edge_values = (LOAD_EDGE_VALUES) ?
@@ -461,7 +482,64 @@ struct Csr
         }
 
         row_offsets[nodes] = edges;
+//-------------------------------------------------------------------------------------------------
+        VertexId *column_indices_diff = (VertexId*) malloc(sizeof(VertexId) * edges);
 
+        for (int i = 0; i < nodes; i++)
+		{
+			for (int j = row_offsets[i]; j < row_offsets[i+1]; j++)
+			{
+				column_indices_diff[j] = column_indices[j]-i;
+//				printf("%d\n", column_indices_diff[j]);
+			}
+		}
+
+        SizeT *reqBytes = (int*) malloc(sizeof(int) * nodes);
+        for (int i = 0; i < nodes; i++) {
+			reqBytes[i] = 0;
+		}
+
+        for (int i = 0; i < nodes; i++) {
+			SizeT max = 0;
+			for (int j = row_offsets[i]; j < row_offsets[i+1]; j++)
+			{
+				max = (max > abs(column_indices_diff[j]))?max:abs(column_indices_diff[j]);
+			}
+//			printf("%d\n", max);
+
+			// Since we're taking abs(), the actual range of values is -max to max
+			// Or in other words, 0 to 2*max
+			max *= 2;
+
+			reqBytes[i] = 0;
+			while (max > 0) {
+				max >>= 8;
+				reqBytes[i]++;
+			}
+
+//			printf("%d\n", reqBytes[i]);
+		}
+
+        comp_row_offsets[0] = 0;
+		for (int i = 0; i < nodes; i++) {
+			comp_row_offsets[i+1] = (row_offsets[i+1] - row_offsets[i])*reqBytes[i] + comp_row_offsets[i];
+		}
+
+		column_bytes = comp_row_offsets[nodes];
+		comp_column_indices = (char*) malloc(sizeof(char) * column_bytes);
+
+		int mask;
+		int k;
+		for (int i = 0; i < nodes; i++) {
+			for (int j = row_offsets[i]; j < row_offsets[i+1]; j++) {
+				mask = 0xff;
+				for (k = 0; k < reqBytes[i]; k++) {
+					comp_column_indices[comp_row_offsets[i] + reqBytes[i]*(j-row_offsets[i]) + k] = (mask & column_indices_diff[j])>>8*k;
+					mask <<= 8;
+				}
+			}
+		}
+//--------------------------------------------------------------------------------------------------------
         time_t mark2 = time(NULL);
         if (!quiet)
         {
@@ -469,7 +547,7 @@ struct Csr
         }
 
         // Write offsets, indices, node, edges etc. into file
-        if (LOAD_EDGE_VALUES)
+/*        if (LOAD_EDGE_VALUES)
         {
             WriteBinary(output_file, nodes, edges,
                         row_offsets, column_indices, edge_values);
@@ -483,7 +561,7 @@ struct Csr
             WriteBinary(output_file, nodes, edges,
                         row_offsets, column_indices);
         }
-
+*/
         // Compute out_nodes
         SizeT out_node = 0;
         for (SizeT node = 0; node < nodes; node++)
@@ -768,6 +846,21 @@ struct Csr
             }
             row_offsets = NULL;
         }
+        if (comp_row_offsets)
+			{
+				if (pinned)
+				{
+					gunrock::util::GRError(
+						cudaFreeHost(comp_row_offsets),
+						"Csr cudaFreeHost comp_row_offsets failed",
+						__FILE__, __LINE__);
+				}
+				else
+				{
+					free(comp_row_offsets);
+				}
+				comp_row_offsets = NULL;
+			}
         if (column_indices)
         {
             if (pinned)
@@ -783,6 +876,21 @@ struct Csr
             }
             column_indices = NULL;
         }
+        if (comp_column_indices)
+			{
+				if (pinned)
+				{
+					gunrock::util::GRError(
+						cudaFreeHost(comp_column_indices),
+						"Csr cudaFreeHost comp_column_indices failed",
+						__FILE__, __LINE__);
+				}
+				else
+				{
+					free(comp_column_indices);
+				}
+				comp_column_indices = NULL;
+			}
         if (edge_values)
         {
             free (edge_values); edge_values = NULL;

@@ -571,7 +571,9 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
                                 gunrock::oprtr::advance::REDUCE_TYPE R_TYPE,
                                 gunrock::oprtr::advance::REDUCE_OP R_OP,
                                 Value *&d_value_to_reduce,
-                                Value *&d_reduce_frontier)
+                                Value *&d_reduce_frontier,
+                                SizeT *&d_comp_row_offsets,
+                                char *&d_comp_column_indices)
     {
         if (KernelPolicy::INSTRUMENT && (blockIdx.x == 0 && threadIdx.x == 0)) {
             kernel_stats.MarkStart();
@@ -673,7 +675,35 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
                 u = d_inverse_column_indices[lookup];
             } else {
                 lookup = d_row_offsets[v] + e;
-                u = d_column_indices[lookup];
+                // -----------------------------------------------------------------------------
+				int length = (d_row_offsets[v+1] - d_row_offsets[v]);
+				if (length) {
+					int reqBytes = (d_comp_row_offsets[v+1] - d_comp_row_offsets[v])/length;
+
+					VertexId compValue = 0;
+					int j;
+
+					int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
+					for (j = 0; j < reqBytes; j++) {
+						compValue |= (d_comp_column_indices[lookup2 + j] & 0xff) << 8*j;
+					}
+	//                printf("node = %d\t vertex = %d\t udiff = %d\n",threadIdx.x, v, compValue);
+
+					if (d_comp_column_indices[lookup2 + j - 1] & 0x80) {
+						VertexId ones = -1 << 8*reqBytes;
+						compValue |= ones;
+					}
+	//                printf("node = %d\t vertex = %d\t diff = %d\n",threadIdx.x, v, compValue);
+
+					u = v+compValue;
+//	                printf("node = %d\t vertex = %d\t u = %d\n",threadIdx.x, v, u);
+//	                u = d_column_indices[lookup];
+//	                printf("node = %d\t vertex = %d\t u_old = %d\n",threadIdx.x, v, u);
+				}
+				else
+					u = d_column_indices[lookup];
+				// -----------------------------------------------------------------------------
+				//u = d_column_indices[lookup];
             }
 
             if (!ProblemData::MARK_PREDECESSORS) {
@@ -993,7 +1023,9 @@ void RelaxLightEdges(
         gunrock::oprtr::advance::REDUCE_TYPE R_TYPE = gunrock::oprtr::advance::EMPTY,
         gunrock::oprtr::advance::REDUCE_OP R_OP = gunrock::oprtr::advance::NONE,
         typename KernelPolicy::Value    *d_value_to_reduce = NULL,
-        typename KernelPolicy::Value    *d_reduce_frontier = NULL)
+        typename KernelPolicy::Value    *d_reduce_frontier = NULL,
+        typename KernelPolicy::SizeT    *d_comp_row_offsets    = NULL,
+        char                            *d_comp_column_indices = NULL)
 {
     Dispatch<KernelPolicy, ProblemData, Functor>::RelaxLightEdges(
                                 queue_reset,
@@ -1019,7 +1051,9 @@ void RelaxLightEdges(
                                 R_TYPE,
                                 R_OP,
                                 d_value_to_reduce,
-                                d_reduce_frontier);
+                                d_reduce_frontier,
+                                d_comp_row_offsets,
+                                d_comp_column_indices);
 }
 
 /**
