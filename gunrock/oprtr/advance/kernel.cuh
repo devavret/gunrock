@@ -215,7 +215,8 @@ template <typename KernelPolicy, typename ProblemData, typename Functor>
         typename KernelPolicy::Value            *d_reduce_frontier = NULL,
         typename KernelPolicy::Value            *d_reduced_value   = NULL,
         typename KernelPolicy::SizeT            *d_comp_row_offsets    = NULL,
-        char                                    *d_comp_column_indices =NULL)
+        char                                    *d_comp_column_indices = NULL,
+        typename KernelPolicy::SizeT            *d_req_bytes           = NULL)
 {
     if (frontier_attribute.queue_length == 0) return;
 
@@ -413,7 +414,8 @@ template <typename KernelPolicy, typename ProblemData, typename Functor>
                             d_value_to_reduce,
                             d_reduce_frontier,
                             d_comp_row_offsets,
-                            d_comp_column_indices);
+                            d_comp_column_indices,
+                            d_req_bytes);
             }
             else if (/*get_output_length &&*/ frontier_attribute.output_length[0] >= LBPOLICY::LIGHT_EDGE_THRESHOLD)
             {

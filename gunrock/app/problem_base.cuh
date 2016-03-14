@@ -91,6 +91,7 @@ struct GraphSlice
     util::Array1D<SizeT, VertexId> column_indices     ; // CSR format column indices
     util::Array1D<SizeT, SizeT   > comp_row_offsets   ; // CSR format row offset of compressed graph
     util::Array1D<SizeT, char    > comp_column_indices; // CSR format compressed column indices
+    util::Array1D<SizeT, SizeT   > req_bytes          ; // Bytes required per element of row
     util::Array1D<SizeT, SizeT   > out_degrees        ;
     util::Array1D<SizeT, SizeT   > column_offsets     ; // CSR format column offset
     util::Array1D<SizeT, VertexId> row_indices        ; // CSR format row indices
@@ -121,6 +122,7 @@ struct GraphSlice
         column_indices     .SetName("column_indices"     );
         comp_row_offsets   .SetName("comp_row_offsets"   );
         comp_column_indices.SetName("comp_column_indices");
+        req_bytes          .SetName("req_bytes"          );
         out_degrees        .SetName("out_degrees"        );
         column_offsets     .SetName("column_offsets"     );
         row_indices        .SetName("row_indices"        );
@@ -149,6 +151,7 @@ struct GraphSlice
         column_indices     .Release();
         comp_row_offsets   .Release();
         comp_column_indices.Release();
+        req_bytes          .Release();
         out_degrees        .Release();
         column_offsets     .Release();
         row_indices        .Release();
@@ -213,6 +216,7 @@ struct GraphSlice
         if (out_counter      != NULL) this->out_counter        .SetPointer(out_counter          , num_gpus + 1);
         this->row_offsets        .SetPointer(graph->row_offsets   , nodes + 1   );
         this->comp_row_offsets   .SetPointer(graph->comp_row_offsets, nodes + 1   );
+        this->req_bytes          .SetPointer(graph->req_bytes     , nodes + 1   );
         this->column_indices     .SetPointer(graph->column_indices, edges     );
         this->comp_column_indices.SetPointer(graph->comp_column_indices, colBytes );
         if (inverstgraph != NULL)
@@ -234,6 +238,10 @@ struct GraphSlice
             // Allocate and initialize row_offsets
             if (retval = this->comp_row_offsets.Allocate(nodes + 1      , util::DEVICE)) break;
             if (retval = this->comp_row_offsets.Move    (util::HOST   , util::DEVICE)) break;
+
+            // Allocate and initialize row_offsets
+            if (retval = this->req_bytes.Allocate(nodes + 1      , util::DEVICE)) break;
+            if (retval = this->req_bytes.Move    (util::HOST   , util::DEVICE)) break;
 
             // Allocate and initialize column_indices
             if (retval = this->column_indices.Allocate(edges     , util::DEVICE)) break;
@@ -333,6 +341,7 @@ struct GraphSlice
         comp_row_offsets    = other.comp_row_offsets   ;
         column_indices      = other.column_indices     ;
         comp_column_indices = other.comp_column_indices;
+        req_bytes           = other.req_bytes          ;
         column_offsets      = other.column_offsets     ;
         row_indices         = other.row_indices        ;
         partition_table     = other.partition_table    ;

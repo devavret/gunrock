@@ -55,6 +55,7 @@ struct Csr
     SizeT    *row_offsets;    // List of indices where each row of the
     // sparse matrix starts
     SizeT    *comp_row_offsets;// List of indices where each row of the
+    SizeT    *req_bytes;      // Bytes required to store elements of each row
     // sparse matrix starts in the compressed column indices
     Value    *edge_values;    // List of values attached to edges in the graph
     Value    *node_values;    // List of values attached to nodes in the graph
@@ -80,6 +81,7 @@ struct Csr
         out_nodes = -1;
         row_offsets = NULL;
         comp_row_offsets = NULL;
+        req_bytes = NULL;
         column_indices = NULL;
         comp_column_indices = NULL;
         edge_values = NULL;
@@ -112,10 +114,15 @@ struct Csr
                         "Csr cudaHostAlloc row_offsets failed", __FILE__, __LINE__))
                 exit(1);
             if (gunrock::util::GRError(
-						cudaHostAlloc((void **)&comp_row_offsets,
-									  sizeof(SizeT) * (nodes + 1), flags),
-						"Csr cudaHostAlloc comp_row_offsets failed", __FILE__, __LINE__))
-				exit(1);
+                        cudaHostAlloc((void **)&comp_row_offsets,
+                            sizeof(SizeT) * (nodes + 1), flags),
+                        "Csr cudaHostAlloc comp_row_offsets failed", __FILE__, __LINE__))
+                exit(1);
+            if (gunrock::util::GRError(
+                        cudaHostAlloc((void **)&req_bytes,
+                            sizeof(SizeT) * (nodes + 1), flags),
+                        "Csr cudaHostAlloc req_bytes failed", __FILE__, __LINE__))
+                exit(1);
             if (gunrock::util::GRError(
                         cudaHostAlloc((void **)&column_indices,
                                       sizeof(VertexId) * edges, flags),
@@ -125,11 +132,11 @@ struct Csr
             // Same amount of memory allocated as column_indices.
             // Only required amount will be transferred to device where we want to save space
             if (gunrock::util::GRError(
-						cudaHostAlloc((void **)&comp_column_indices,
-									  sizeof(VertexId) * edges, flags),
-						"Csr cudaHostAlloc comp_column_indices failed",
-						__FILE__, __LINE__))
-				exit(1);
+                        cudaHostAlloc((void **)&comp_column_indices,
+                                      sizeof(VertexId) * edges, flags),
+                        "Csr cudaHostAlloc comp_column_indices failed",
+                        __FILE__, __LINE__))
+                exit(1);
 
             if (LOAD_NODE_VALUES)
             {
@@ -157,6 +164,7 @@ struct Csr
             // Put our graph in regular memory
             row_offsets = (SizeT*) malloc(sizeof(SizeT) * (nodes + 1));
             comp_row_offsets = (SizeT*) malloc(sizeof(SizeT) * (nodes + 1));
+            req_bytes   = (SizeT*) malloc(sizeof(SizeT) * (nodes + 1));
             column_indices = (VertexId*) malloc(sizeof(VertexId) * edges);
             comp_column_indices = (char*) malloc(sizeof(char) * edges);
             node_values = (LOAD_NODE_VALUES) ?
@@ -494,9 +502,8 @@ struct Csr
 			}
 		}
 
-        SizeT *reqBytes = (int*) malloc(sizeof(int) * nodes);
         for (int i = 0; i < nodes; i++) {
-			reqBytes[i] = 0;
+			req_bytes[i] = 0;
 		}
 
         for (int i = 0; i < nodes; i++) {
@@ -511,10 +518,10 @@ struct Csr
 			// Or in other words, 0 to 2*max
 			max *= 2;
 
-			reqBytes[i] = 0;
+			req_bytes[i] = 0;
 			while (max > 0) {
 				max >>= 8;
-				reqBytes[i]++;
+				req_bytes[i]++;
 			}
 
 //			printf("%d\n", reqBytes[i]);
@@ -522,7 +529,7 @@ struct Csr
 
         comp_row_offsets[0] = 0;
 		for (int i = 0; i < nodes; i++) {
-			comp_row_offsets[i+1] = (row_offsets[i+1] - row_offsets[i])*reqBytes[i] + comp_row_offsets[i];
+			comp_row_offsets[i+1] = (row_offsets[i+1] - row_offsets[i])*req_bytes[i] + comp_row_offsets[i];
 		}
 
 		column_bytes = comp_row_offsets[nodes];
@@ -533,8 +540,8 @@ struct Csr
 		for (int i = 0; i < nodes; i++) {
 			for (int j = row_offsets[i]; j < row_offsets[i+1]; j++) {
 				mask = 0xff;
-				for (k = 0; k < reqBytes[i]; k++) {
-					comp_column_indices[comp_row_offsets[i] + reqBytes[i]*(j-row_offsets[i]) + k] = (mask & column_indices_diff[j])>>8*k;
+				for (k = 0; k < req_bytes[i]; k++) {
+					comp_column_indices[comp_row_offsets[i] + req_bytes[i]*(j-row_offsets[i]) + k] = (mask & column_indices_diff[j])>>8*k;
 					mask <<= 8;
 				}
 			}
@@ -860,6 +867,21 @@ struct Csr
 					free(comp_row_offsets);
 				}
 				comp_row_offsets = NULL;
+			}
+        if (req_bytes)
+			{
+				if (pinned)
+				{
+					gunrock::util::GRError(
+						cudaFreeHost(req_bytes),
+						"Csr cudaFreeHost req_bytes failed",
+						__FILE__, __LINE__);
+				}
+				else
+				{
+					free(req_bytes);
+				}
+				req_bytes = NULL;
 			}
         if (column_indices)
         {

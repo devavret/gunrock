@@ -1,4 +1,4 @@
-// ----------------------------------------------------------------
+	// ----------------------------------------------------------------
 // Gunrock -- Fast and Efficient GPU Graph Library
 // ----------------------------------------------------------------
 // This source code is distributed under the terms of LICENSE.TXT
@@ -573,7 +573,8 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
                                 Value *&d_value_to_reduce,
                                 Value *&d_reduce_frontier,
                                 SizeT *&d_comp_row_offsets,
-                                char *&d_comp_column_indices)
+                                char *&d_comp_column_indices,
+                                SizeT *&d_req_bytes)
     {
         if (KernelPolicy::INSTRUMENT && (blockIdx.x == 0 && threadIdx.x == 0)) {
             kernel_stats.MarkStart();
@@ -674,18 +675,19 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
                 lookup = d_inverse_row_offsets[v] + e;
                 u = d_inverse_column_indices[lookup];
             } else {
-                lookup = d_row_offsets[v] + e;
+//                lookup = d_row_offsets[v] + e;
                 // -----------------------------------------------------------------------------
-				int length = (d_row_offsets[v+1] - d_row_offsets[v]);
-				if (length) {
-					int reqBytes = (d_comp_row_offsets[v+1] - d_comp_row_offsets[v])/length;
-
+				int reqBytes = d_req_bytes[v];
+				if (reqBytes) {
 					VertexId compValue = 0;
 					int j;
 
 					int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
+					unsigned char* ptrcv = (unsigned char*) &compValue;
 					for (j = 0; j < reqBytes; j++) {
-						compValue |= (d_comp_column_indices[lookup2 + j] & 0xff) << 8*j;
+						*ptrcv = d_comp_column_indices[lookup2 + j];
+						//compValue |= (d_comp_column_indices[lookup2 + j] & 0xff) << 8*j;
+						ptrcv++;
 					}
 	//                printf("node = %d\t vertex = %d\t udiff = %d\n",threadIdx.x, v, compValue);
 
@@ -700,8 +702,8 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
 //	                u = d_column_indices[lookup];
 //	                printf("node = %d\t vertex = %d\t u_old = %d\n",threadIdx.x, v, u);
 				}
-				else
-					u = d_column_indices[lookup];
+//				else
+//					u = d_column_indices[lookup];
 				// -----------------------------------------------------------------------------
 				//u = d_column_indices[lookup];
             }
@@ -1025,7 +1027,8 @@ void RelaxLightEdges(
         typename KernelPolicy::Value    *d_value_to_reduce = NULL,
         typename KernelPolicy::Value    *d_reduce_frontier = NULL,
         typename KernelPolicy::SizeT    *d_comp_row_offsets    = NULL,
-        char                            *d_comp_column_indices = NULL)
+        char                            *d_comp_column_indices = NULL,
+        typename KernelPolicy::SizeT    *d_req_bytes           = NULL)
 {
     Dispatch<KernelPolicy, ProblemData, Functor>::RelaxLightEdges(
                                 queue_reset,
@@ -1053,7 +1056,8 @@ void RelaxLightEdges(
                                 d_value_to_reduce,
                                 d_reduce_frontier,
                                 d_comp_row_offsets,
-                                d_comp_column_indices);
+                                d_comp_column_indices,
+                                d_req_bytes);
 }
 
 /**

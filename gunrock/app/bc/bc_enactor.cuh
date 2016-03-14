@@ -306,7 +306,8 @@ public:
             NULL,
             NULL,
             graph_slice->comp_row_offsets   .GetPointer(util::DEVICE),
-            graph_slice->comp_column_indices.GetPointer(util::DEVICE));
+            graph_slice->comp_column_indices.GetPointer(util::DEVICE),
+            graph_slice->req_bytes          .GetPointer(util::DEVICE));
 
         frontier_attribute->queue_reset = false;
         frontier_attribute->queue_index++;
@@ -690,7 +691,8 @@ public:
                 NULL,
                 NULL,
                 graph_slice->comp_row_offsets   .GetPointer(util::DEVICE),
-                graph_slice->comp_column_indices.GetPointer(util::DEVICE));
+                graph_slice->comp_column_indices.GetPointer(util::DEVICE),
+                graph_slice->req_bytes          .GetPointer(util::DEVICE));
         } else {
             gunrock::oprtr::advance::LaunchKernel<AdvanceKernelPolicy, Problem, BackwardFunctor2>(
                 enactor_stats[0],
@@ -723,7 +725,8 @@ public:
                 NULL,
                 NULL,
                 graph_slice->comp_row_offsets   .GetPointer(util::DEVICE),
-                graph_slice->comp_column_indices.GetPointer(util::DEVICE));
+                graph_slice->comp_column_indices.GetPointer(util::DEVICE),
+                graph_slice->req_bytes          .GetPointer(util::DEVICE));
         }
         enactor_stats -> nodes_queued[0] += frontier_attribute -> queue_length;
 
