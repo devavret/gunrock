@@ -1,4 +1,4 @@
-	// ----------------------------------------------------------------
+// ----------------------------------------------------------------
 // Gunrock -- Fast and Efficient GPU Graph Library
 // ----------------------------------------------------------------
 // This source code is distributed under the terms of LICENSE.TXT
@@ -675,7 +675,7 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
                 lookup = d_inverse_row_offsets[v] + e;
                 u = d_inverse_column_indices[lookup];
             } else {
-//                lookup = d_row_offsets[v] + e;
+                lookup = d_row_offsets[v] + e;
                 // -----------------------------------------------------------------------------
 				int reqBytes = d_req_bytes[v];
 				if (reqBytes) {
@@ -683,11 +683,11 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
 					int j;
 
 					int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
-					unsigned char* ptrcv = (unsigned char*) &compValue;
+					//unsigned char* ptrcv = (unsigned char*) &compValue;
 					for (j = 0; j < reqBytes; j++) {
-						*ptrcv = d_comp_column_indices[lookup2 + j];
-						//compValue |= (d_comp_column_indices[lookup2 + j] & 0xff) << 8*j;
-						ptrcv++;
+						//*ptrcv = d_comp_column_indices[lookup2 + j];
+						compValue |= (d_comp_column_indices[lookup2 + j] & 0xff) << 8*j;
+						//ptrcv++;
 					}
 	//                printf("node = %d\t vertex = %d\t udiff = %d\n",threadIdx.x, v, compValue);
 
@@ -697,7 +697,7 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
 					}
 	//                printf("node = %d\t vertex = %d\t diff = %d\n",threadIdx.x, v, compValue);
 
-					u = v+compValue;
+					int u2 = v+compValue;
 //	                printf("node = %d\t vertex = %d\t u = %d\n",threadIdx.x, v, u);
 //	                u = d_column_indices[lookup];
 //	                printf("node = %d\t vertex = %d\t u_old = %d\n",threadIdx.x, v, u);
@@ -705,7 +705,7 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
 //				else
 //					u = d_column_indices[lookup];
 				// -----------------------------------------------------------------------------
-				//u = d_column_indices[lookup];
+				u = d_column_indices[lookup];
             }
 
             if (!ProblemData::MARK_PREDECESSORS) {
