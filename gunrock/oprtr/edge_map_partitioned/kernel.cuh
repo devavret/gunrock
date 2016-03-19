@@ -573,8 +573,8 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
                                 Value *&d_value_to_reduce,
                                 Value *&d_reduce_frontier,
                                 SizeT *&d_comp_row_offsets,
-                                char *&d_comp_column_indices,
-                                SizeT *&d_req_bytes)
+                                unsigned char *&d_comp_column_indices,
+                                unsigned char *&d_req_bytes)
     {
         if (KernelPolicy::INSTRUMENT && (blockIdx.x == 0 && threadIdx.x == 0)) {
             kernel_stats.MarkStart();
@@ -675,37 +675,37 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
                 lookup = d_inverse_row_offsets[v] + e;
                 u = d_inverse_column_indices[lookup];
             } else {
-                lookup = d_row_offsets[v] + e;
+                //lookup = d_row_offsets[v] + e;
                 // -----------------------------------------------------------------------------
-				int reqBytes = d_req_bytes[v];
-				if (reqBytes) {
-					VertexId compValue = 0;
-					int j;
+                int reqBytes = d_req_bytes[v];
+                if (reqBytes) {
+                    VertexId compValue = 0;
+                    int j;
 
-					int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
-					//unsigned char* ptrcv = (unsigned char*) &compValue;
-					for (j = 0; j < reqBytes; j++) {
-						//*ptrcv = d_comp_column_indices[lookup2 + j];
-						compValue |= (d_comp_column_indices[lookup2 + j] & 0xff) << 8*j;
-						//ptrcv++;
-					}
-	//                printf("node = %d\t vertex = %d\t udiff = %d\n",threadIdx.x, v, compValue);
+                    int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
+                    //unsigned char* ptrcv = (unsigned char*) &compValue;
+                    for (j = 0; j < reqBytes; j++) {
+                        //*ptrcv = d_comp_column_indices[lookup2 + j];
+                        compValue |= d_comp_column_indices[lookup2 + j] << 8*j;
+                        //ptrcv++;
+                    }
+    //                printf("node = %d\t vertex = %d\t udiff = %d\n",threadIdx.x, v, compValue);
 
-					if (d_comp_column_indices[lookup2 + j - 1] & 0x80) {
-						VertexId ones = -1 << 8*reqBytes;
-						compValue |= ones;
-					}
-	//                printf("node = %d\t vertex = %d\t diff = %d\n",threadIdx.x, v, compValue);
+//                    if (d_comp_column_indices[lookup2 + j - 1] & 0x80) {
+                        VertexId ones = ((d_comp_column_indices[lookup2 + j - 1] & 0x80) > 0)*(-1) << 8*reqBytes;
+                        compValue |= ones;
+//                    }
+    //                printf("node = %d\t vertex = %d\t diff = %d\n",threadIdx.x, v, compValue);
 
-					int u2 = v+compValue;
-//	                printf("node = %d\t vertex = %d\t u = %d\n",threadIdx.x, v, u);
-//	                u = d_column_indices[lookup];
-//	                printf("node = %d\t vertex = %d\t u_old = %d\n",threadIdx.x, v, u);
-				}
-//				else
-//					u = d_column_indices[lookup];
-				// -----------------------------------------------------------------------------
-				u = d_column_indices[lookup];
+                    u = v+compValue;
+//                    printf("node = %d\t vertex = %d\t u = %d\n",threadIdx.x, v, u);
+//                    u = d_column_indices[lookup];
+//                    printf("node = %d\t vertex = %d\t u_old = %d\n",threadIdx.x, v, u);
+                }
+//                else
+//                    u = d_column_indices[lookup];
+                // -----------------------------------------------------------------------------
+                //u = d_column_indices[lookup];
             }
 
             if (!ProblemData::MARK_PREDECESSORS) {
@@ -1027,8 +1027,8 @@ void RelaxLightEdges(
         typename KernelPolicy::Value    *d_value_to_reduce = NULL,
         typename KernelPolicy::Value    *d_reduce_frontier = NULL,
         typename KernelPolicy::SizeT    *d_comp_row_offsets    = NULL,
-        char                            *d_comp_column_indices = NULL,
-        typename KernelPolicy::SizeT    *d_req_bytes           = NULL)
+        unsigned char                   *d_comp_column_indices = NULL,
+        unsigned char                   *d_req_bytes           = NULL)
 {
     Dispatch<KernelPolicy, ProblemData, Functor>::RelaxLightEdges(
                                 queue_reset,

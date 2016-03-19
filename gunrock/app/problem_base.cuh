@@ -90,8 +90,8 @@ struct GraphSlice
     util::Array1D<SizeT, SizeT   > row_offsets        ; // CSR format row offset
     util::Array1D<SizeT, VertexId> column_indices     ; // CSR format column indices
     util::Array1D<SizeT, SizeT   > comp_row_offsets   ; // CSR format row offset of compressed graph
-    util::Array1D<SizeT, char    > comp_column_indices; // CSR format compressed column indices
-    util::Array1D<SizeT, SizeT   > req_bytes          ; // Bytes required per element of row
+    util::Array1D<SizeT, unsigned char> comp_column_indices; // CSR format compressed column indices
+    util::Array1D<SizeT, unsigned char> req_bytes          ; // Bytes required per element of row
     util::Array1D<SizeT, SizeT   > out_degrees        ;
     util::Array1D<SizeT, SizeT   > column_offsets     ; // CSR format column offset
     util::Array1D<SizeT, VertexId> row_indices        ; // CSR format row indices

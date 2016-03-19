@@ -215,8 +215,8 @@ template <typename KernelPolicy, typename ProblemData, typename Functor>
         typename KernelPolicy::Value            *d_reduce_frontier = NULL,
         typename KernelPolicy::Value            *d_reduced_value   = NULL,
         typename KernelPolicy::SizeT            *d_comp_row_offsets    = NULL,
-        char                                    *d_comp_column_indices = NULL,
-        typename KernelPolicy::SizeT            *d_req_bytes           = NULL)
+        unsigned char                           *d_comp_column_indices = NULL,
+        unsigned char                           *d_req_bytes           = NULL)
 {
     if (frontier_attribute.queue_length == 0) return;
 

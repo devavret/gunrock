@@ -51,11 +51,11 @@ struct Csr
 
     VertexId *column_indices; // Column indices corresponding to all the
     // non-zero values in the sparse matrix
-    char     *comp_column_indices;// Compressed column indices
+    unsigned char *comp_column_indices;// Compressed column indices
     SizeT    *row_offsets;    // List of indices where each row of the
     // sparse matrix starts
     SizeT    *comp_row_offsets;// List of indices where each row of the
-    SizeT    *req_bytes;      // Bytes required to store elements of each row
+    unsigned char    *req_bytes;      // Bytes required to store elements of each row
     // sparse matrix starts in the compressed column indices
     Value    *edge_values;    // List of values attached to edges in the graph
     Value    *node_values;    // List of values attached to nodes in the graph
@@ -120,7 +120,7 @@ struct Csr
                 exit(1);
             if (gunrock::util::GRError(
                         cudaHostAlloc((void **)&req_bytes,
-                            sizeof(SizeT) * (nodes + 1), flags),
+                            sizeof(unsigned char) * (nodes + 1), flags),
                         "Csr cudaHostAlloc req_bytes failed", __FILE__, __LINE__))
                 exit(1);
             if (gunrock::util::GRError(
@@ -164,9 +164,9 @@ struct Csr
             // Put our graph in regular memory
             row_offsets = (SizeT*) malloc(sizeof(SizeT) * (nodes + 1));
             comp_row_offsets = (SizeT*) malloc(sizeof(SizeT) * (nodes + 1));
-            req_bytes   = (SizeT*) malloc(sizeof(SizeT) * (nodes + 1));
+            req_bytes   = (unsigned char*) malloc(sizeof(unsigned char) * (nodes + 1));
             column_indices = (VertexId*) malloc(sizeof(VertexId) * edges);
-            comp_column_indices = (char*) malloc(sizeof(char) * edges);
+            comp_column_indices = (unsigned char*) malloc(sizeof(VertexId) * edges);
             node_values = (LOAD_NODE_VALUES) ?
                           (Value*) malloc(sizeof(Value) * nodes) : NULL;
             edge_values = (LOAD_EDGE_VALUES) ?
@@ -533,7 +533,7 @@ struct Csr
 		}
 
 		column_bytes = comp_row_offsets[nodes];
-		comp_column_indices = (char*) malloc(sizeof(char) * column_bytes);
+		comp_column_indices = (unsigned char*) malloc(sizeof(unsigned char) * column_bytes);
 
 		int mask;
 		int k;
