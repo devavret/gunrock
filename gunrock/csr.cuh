@@ -541,9 +541,15 @@ struct Csr
 			for (int j = row_offsets[i]; j < row_offsets[i+1]; j++) {
 				mask = 0xff;
 				for (k = 0; k < req_bytes[i]; k++) {
-					comp_column_indices[comp_row_offsets[i] + req_bytes[i]*(j-row_offsets[i]) + k] = (mask & column_indices_diff[j])>>8*k;
+					comp_column_indices[comp_row_offsets[i] + req_bytes[i]*(j-row_offsets[i]) + k] = (mask & abs(column_indices_diff[j]))>>8*k;
+					// printf("%d, %d\n", column_indices_diff[j], mask & abs(column_indices_diff[j])>>8*k);
 					mask <<= 8;
 				}
+                if (column_indices_diff[j]<0)
+                {
+                    comp_column_indices[comp_row_offsets[i] + req_bytes[i]*(j-row_offsets[i]) + k - 1] |= 0x80;
+                }
+				//comp_column_indices[comp_row_offsets[i] + req_bytes[i]*(j-row_offsets[i]) + k - 1] |= ((0x80<<8*(k-1)) & column_indices_diff[j]);
 			}
 		}
 //--------------------------------------------------------------------------------------------------------

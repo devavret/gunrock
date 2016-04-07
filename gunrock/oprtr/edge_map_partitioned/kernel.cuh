@@ -683,19 +683,76 @@ struct Dispatch<KernelPolicy, ProblemData, Functor, true>
                     int j;
 
                     int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
-                    //unsigned char* ptrcv = (unsigned char*) &compValue;
-                    for (j = 0; j < reqBytes; j++) {
-                        //*ptrcv = d_comp_column_indices[lookup2 + j];
-                        compValue |= d_comp_column_indices[lookup2 + j] << 8*j;
-                        //ptrcv++;
+/*
+                    if (reqBytes == 1) {
+                        compValue = *((VertexId*) &d_comp_column_indices[lookup2]) & 0x7f;
                     }
-    //                printf("node = %d\t vertex = %d\t udiff = %d\n",threadIdx.x, v, compValue);
+                    else if (reqBytes == 2){
+                        compValue = *((VertexId*) &d_comp_column_indices[lookup2]) & 0x7fff;
+                    }
+                    else if (reqBytes == 3){
+                        compValue = *((VertexId*) &d_comp_column_indices[lookup2]) & 0x7fffff;
+                    }
+                    else if (reqBytes == 4){
+                        compValue = *((VertexId*) &d_comp_column_indices[lookup2]) & 0x7fffffff;
+                    }
+*/
+                    for (j = 0; j < reqBytes-1; j++) {
+                        compValue |= d_comp_column_indices[lookup2 + j] << 8*j;
+                    }
+					compValue |= (d_comp_column_indices[lookup2 + j] & 0x7f) << 8*j;
+
+/*
+                    int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
+					int* temp = (int*)d_comp_column_indices[lookup2];
+					unsigned char* extraPtr = d_comp_column_indices + lookup2;
+                    for (j = 0; j < reqBytes; j++) {
+                        compValue |= extraPtr[j] << 8*j;
+                    }
+*/					
+/*
+					if(0<reqBytes){
+                        compValue |= extraPtr[0] << 0;
+						if(1<reqBytes){
+							compValue |= extraPtr[1] << 8;
+							if(2<reqBytes){
+								compValue |= extraPtr[2] << 16;
+								if(3<reqBytes){
+									compValue |= extraPtr[3] << 24;
+								}
+							}
+						}
+					}
+*/
+					
+/*					
+                    int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
+                    unsigned char* ptrcv = (unsigned char*) &compValue;
+                    for (j = 0; j < reqBytes; j++) {
+                        *ptrcv = d_comp_column_indices[lookup2 + j];
+                        ptrcv++;
+                    }
+*/
+/*
+                    int lookup2 = d_comp_row_offsets[v] + e*reqBytes;
+                    unsigned char* ptrcv = (unsigned char*) &compValue;
+					unsigned char* extraPtr = d_comp_column_indices + lookup2;
+                    for (j = 0; j < reqBytes; j++) {
+                        *ptrcv = *extraPtr;
+                        ptrcv++;
+						extraPtr++;
+                    }
+*/
+					
+                    // printf("node = %d\t vertex = %d\t udiff = %d\n",threadIdx.x, v, compValue);
 
 //                    if (d_comp_column_indices[lookup2 + j - 1] & 0x80) {
-                        VertexId ones = ((d_comp_column_indices[lookup2 + j - 1] & 0x80) > 0)*(-1) << 8*reqBytes;
-                        compValue |= ones;
+                        // VertexId ones = ((d_comp_column_indices[lookup2 + reqBytes - 1] & 0x80) > 0)*(-1) << 8*reqBytes;
+                        // compValue |= ones;
+						if (d_comp_column_indices[lookup2 + reqBytes - 1] & 0x80)
+							compValue *= -1;
 //                    }
-    //                printf("node = %d\t vertex = %d\t diff = %d\n",threadIdx.x, v, compValue);
+                    // printf("node = %d\t vertex = %d\t diff = %d\n",threadIdx.x, v, compValue);
 
                     u = v+compValue;
 //                    printf("node = %d\t vertex = %d\t u = %d\n",threadIdx.x, v, u);
